@@ -9,11 +9,11 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from collections import deque
-import time
+
 
 #Functions:
 
-def createState(N,n,L,r):
+def createState(N,n,r,L):
     '''Returns a state, representing a square with sides L, N circles with radius R=1, and n circles with radius r.
     States have form { "positions" : [(float,float)], "size": [float], "L": int, "occArray": [] }'''
     positions = np.zeros((N+n,2))
@@ -56,7 +56,12 @@ def createState(N,n,L,r):
         x,y = positions[i]
         x,y = int(x)%L, int(y)%L
         occArray[x,y].append(i)
-    return {"positions": positions, "size": size, "occArray": occArray, "L":L}
+    return {"positions": positions, "size": size, "occArray": occArray, "L":L, "N":N, "n":n}
+
+def createStateDensity(N,n,r,d):
+    Acircles = m.pi*(N+(r**2)*n)
+    L = m.ceil(m.sqrt(d/Acircles))  #round up?
+    return createState(N,n,r,L)
 
 def plotOneState(state, name="..."):
     '''Plot a state using matplotlib'''
@@ -75,8 +80,8 @@ def plotOneState(state, name="..."):
             for y_shift in [z for z in y + [-L,0,L] if -r<z<L+r]:
                 ax.add_patch(plt.Circle((x_shift,y_shift),r))
     if (name=="..."):
-        outname = "testplot.jpeg"
-    plt.savefig(outname)
+        name = "testplot.jpeg"
+    plt.savefig(name)
 
 def clearDisk(state,index):
     occX, occY = state["positions"][index]
@@ -111,15 +116,11 @@ def getOverlap(state, index):
                 thisYSquare = (ySquare+dY) % L
                 circlesToCheck = state["occArray"][thisXSquare,thisYSquare]
                 for circle in circlesToCheck:
-                    #retrieve all vars for current circle:
+                    distance = findDistance(state,index,circle)
                     thisR = state["size"][circle]
-                    thisX,thisY = state["positions"][circle]
-                    xDist, yDist = abs(x - thisX), abs(y - thisY)
-                    #print(x,thisX,y,thisY,m.sqrt((x - thisX)**2 + (y - thisY)**2))
-                    #check for overlap:
-                    if ( m.sqrt(min(xDist,L-xDist)**2 + min(yDist,L-yDist)**2) < R+thisR):
+                    if ( distance < R+thisR):
                         #check if fully covered (small circle represented by square for convenience):
-                        if (R==1 and thisR <1 and m.sqrt(xDist**2 + yDist**2)+thisR < R):
+                        if (distance+thisR < R):
                             overlap.append((circle,True))
                         else:
                             overlap.append((circle,False))
@@ -157,14 +158,22 @@ def diskClusterMove(state,index,pivot):
     for i in range(len(moved)):
         addDisk(state,moved[i])
 
+def findDistance(state,i,j):
+    x1,y1 = state["positions"][i]
+    x2,y2 = state["positions"][j]
+    dx, dy = abs(x1-x2), abs(y1-y2)
+    dx, dy = min(dx, state["L"]-dx), min(dy, state["L"]-dy)
+    return (m.sqrt(dx**2 + dy**2))
 
-# Code to run:
-N = 1000
+def findDavg(state):
+    cumDistance = 0
+    for i in range(state["N"]):
+        for j in range(i+1, state["N"]):
+            cumDistance += findDistance(state,i,j)
+    return cumDistance / (state["N"]*(state["N"]-1)/2)
 
-s = createState(10,700,10,0.1)
-startTime = time.perf_counter()
-for i in range(N):
-    randomDiskClusterMove(s)
-spentTime = time.perf_counter() - startTime
-print("Performing "+str(N)+" Cluster moves takes "+str(spentTime)+"s.")
-plotOneState(s)
+
+
+
+
+
