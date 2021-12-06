@@ -9,7 +9,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from collections import deque
- 
+import time
 
 #Functions:
 
@@ -58,7 +58,7 @@ def createState(N,n,L,r):
         occArray[x,y].append(i)
     return {"positions": positions, "size": size, "occArray": occArray, "L":L}
 
-def plotOneState(state):
+def plotOneState(state, name="..."):
     '''Plot a state using matplotlib'''
     L = state["L"]
     fig, ax = plt.subplots()
@@ -74,7 +74,8 @@ def plotOneState(state):
         for x_shift in [z for z in x + [-L,0,L] if -r<z<L+r]:
             for y_shift in [z for z in y + [-L,0,L] if -r<z<L+r]:
                 ax.add_patch(plt.Circle((x_shift,y_shift),r))
-    outname = "testplot.jpeg"
+    if (name=="..."):
+        outname = "testplot.jpeg"
     plt.savefig(outname)
 
 def clearDisk(state,index):
@@ -104,18 +105,24 @@ def getOverlap(state, index):
 
     #big circles: check in 5x5 centred on circle
     if (True):
-        for dX in range(0,10): #wht 3?
+        for dX in range(-3,3): #wht 3?
             thisXSquare = (xSquare+dX) % L
-            for dY in range(0,10):
+            for dY in range(-3,3):
                 thisYSquare = (ySquare+dY) % L
                 circlesToCheck = state["occArray"][thisXSquare,thisYSquare]
                 for circle in circlesToCheck:
+                    #retrieve all vars for current circle:
                     thisR = state["size"][circle]
                     thisX,thisY = state["positions"][circle]
-                    xDist, yDist = x - thisX, y - thisY
+                    xDist, yDist = abs(x - thisX), abs(y - thisY)
                     #print(x,thisX,y,thisY,m.sqrt((x - thisX)**2 + (y - thisY)**2))
+                    #check for overlap:
                     if ( m.sqrt(min(xDist,L-xDist)**2 + min(yDist,L-yDist)**2) < R+thisR):
-                        overlap.append(circle)
+                        #check if fully covered (small circle represented by square for convenience):
+                        if (R==1 and thisR <1 and m.sqrt(xDist**2 + yDist**2)+thisR < R):
+                            overlap.append((circle,True))
+                        else:
+                            overlap.append((circle,False))
     return overlap
 
 
@@ -130,21 +137,34 @@ def randomDiskClusterMove(state):
 
 def diskClusterMove(state,index,pivot):
     toMove = deque()
+    moved = []
     toMove.appendleft(index)
     clearDisk(state,index)
+    moved.append(index)
     while toMove:
         thisDisk = toMove.pop()
         pointReflect(state["positions"][thisDisk], pivot, state["L"])
         overlap = getOverlap(state,thisDisk)
-        for diskToMove in overlap:
-            toMove.appendleft(diskToMove)
+        for (diskToMove, isCovered) in overlap:
             clearDisk(state,diskToMove)
-        print(toMove)
-        addDisk(state,thisDisk)
+            moved.append(diskToMove)
+            if isCovered:
+                pointReflect(state["positions"][diskToMove], pivot, state["L"])
+            else:
+                toMove.appendleft(diskToMove)
+            
+    #Original added disks immidiatly, but this caused some problem. This fixes it, but the original problem suggests our code is still wrong somewhere...
+    for i in range(len(moved)):
+        addDisk(state,moved[i])
 
 
 # Code to run:
-s = createState(10,0,10,0.1)
-for i in range(10):
+N = 1000
+
+s = createState(10,700,10,0.1)
+startTime = time.perf_counter()
+for i in range(N):
     randomDiskClusterMove(s)
+spentTime = time.perf_counter() - startTime
+print("Performing "+str(N)+" Cluster moves takes "+str(spentTime)+"s.")
 plotOneState(s)
