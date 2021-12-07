@@ -11,7 +11,84 @@ import matplotlib.pyplot as plt
 from collections import deque
 
 
-#Functions:
+#   Helper functions:
+
+def findCellCoords(state, index):
+    x,y = state["positions"][index]
+    L = state["L"]
+    return int(x*state["nmbrCells"]/L)%state["nmbrCells"], int(y*state["nmbrCells"]/L)%state["nmbrCells"]
+
+def clearDisk(state,index):
+    occX, occY = findCellCoords(state,index)
+    indexInOcc = state["occArray"][occX,occY].index(index)
+    state["occArray"][occX,occY].pop(indexInOcc)
+
+def addDisk(state,index):
+    occX, occY = findCellCoords(state,index)
+    state["occArray"][occX,occY].append(index)
+
+def pointReflect(point, pivot, L):
+    point[:] = (2*pivot - point)%L
+
+def canCollide(state,index):
+    occX,occY = findCellCoords(state,index)
+    if index in state["occArray"][occX,occY]:
+        return True
+    return False
+
+
+#   Functions for finding overlapping circles:
+
+def getOverlapCircles(state,i,j):
+    distance = findDistance(state,i,j)
+    Ri,Rj = state["size"][i],state["size"][j]
+    if ( distance < Ri+Rj):
+        #check if fully covered (small circle represented by square for convenience):
+        if (distance+Rj < Ri):
+            return[(j,True)]
+        else:
+            return[(j,False)]
+    return []
+
+def getOverlap(state, index):
+    R = state["size"][index]
+    L = state["L"]
+    x,y = state["positions"][index]
+    xSquare,ySquare = findCellCoords(state,index)
+    overlap = []
+
+    #check which cells need to be checked
+    if (2*R < state["cellSize"]):
+        cellsToCheck = 1
+    elif(R ==1):
+        cellsToCheck = m.ceil(R/state["cellSize"])+m.ceil(state["r"]/state["cellSize"])+1
+    else:
+        cellsToCheck = m.ceil(R/state["cellSize"])*4+1
+
+    #check neighbouring cells for overlap with small circles
+    circlesToCheck = [] #For some reason we are getting duplicates here, how could that be?
+    for dX in range(-cellsToCheck,cellsToCheck): 
+        thisXSquare = (xSquare+dX) % state["nmbrCells"]
+        for dY in range(-cellsToCheck,cellsToCheck):
+            thisYSquare = (ySquare+dY) % state["nmbrCells"]
+            circlesToCheck.extend(set((state["occArray"][thisXSquare,thisYSquare])))
+
+    for circle in circlesToCheck:
+        if circle>=state["N"]:
+            overlap.extend(getOverlapCircles(state,index,circle))
+
+    #check with all big circles, required for smaller circles:
+    for i in range(state["N"]):
+        if canCollide(state,i):
+            overlap.extend(getOverlapCircles(state,index,i))
+    return overlap
+
+#   Creating States:
+
+def createStateDensity(N,n,r,d):
+    Acircles = m.pi*(N+(r**2)*n)
+    L = m.ceil(m.sqrt(Acircles/d))  #round up?
+    return createState(N,n,r,L)
 
 def createState(N,n,r,L):
     '''Returns a state, representing a square with sides L, N circles with radius R=1, and n circles with radius r.
@@ -66,99 +143,7 @@ def createState(N,n,r,L):
 
     return {"positions": positions, "size": size, "occArray": occArray, "L":L, "N":N, "n":n, "R":R,"r":r, "cellSize":cellSize, "nmbrCells":nmbrCells}
 
-def findCellCoords(state, index):
-    x,y = state["positions"][index]
-    L = state["L"]
-    return int(x*state["nmbrCells"]/L)%state["nmbrCells"], int(y*state["nmbrCells"]/L)%state["nmbrCells"]
-
-def createStateDensity(N,n,r,d):
-    Acircles = m.pi*(N+(r**2)*n)
-    L = m.ceil(m.sqrt(d/Acircles))  #round up?
-    return createState(N,n,r,L)
-
-def plotOneState(state, name="..."):
-    '''Plot a state using matplotlib'''
-    L = state["L"]
-    fig, ax = plt.subplots()
-    ax.set_ylim(0,state["L"])
-    ax.set_xlim(0,state["L"])
-    ax.set_yticklabels([])
-    ax.set_xticklabels([])
-    ax.set_yticks([])
-    ax.set_xticks([])
-    for i in range(len(state["size"])):
-        (x,y) = state["positions"][i]
-        r = state["size"][i]
-        for x_shift in [z for z in x + [-L,0,L] if -r<z<L+r]:
-            for y_shift in [z for z in y + [-L,0,L] if -r<z<L+r]:
-                ax.add_patch(plt.Circle((x_shift,y_shift),r))
-    if (name=="..."):
-        name = "testplot.jpeg"
-    plt.savefig(name)
-
-def clearDisk(state,index):
-    occX, occY = findCellCoords(state,index)
-    indexInOcc = state["occArray"][occX,occY].index(index)
-    state["occArray"][occX,occY].pop(indexInOcc)
-
-def addDisk(state,index):
-    occX, occY = findCellCoords(state,index)
-    state["occArray"][occX,occY].append(index)
-
-def pointReflect(point, pivot, L):
-    point[:] = (2*pivot - point)%L
-
-def canCollide(state,index):
-    occX,occY = findCellCoords(state,index)
-    if index in state["occArray"][occX,occY]:
-        return True
-    return False
-
-def getOverlapCircles(state,i,j):
-    distance = findDistance(state,i,j)
-    Ri,Rj = state["size"][i],state["size"][j]
-    if ( distance < Ri+Rj):
-        #check if fully covered (small circle represented by square for convenience):
-        if (distance+Rj < Ri):
-            return[(j,True)]
-        else:
-            return[(j,False)]
-    return []
-
-def getOverlap(state, index):
-    R = state["size"][index]
-    L = state["L"]
-    x,y = state["positions"][index]
-    xSquare,ySquare = findCellCoords(state,index)
-    overlap = []
-
-    #check which cells need to be checked
-    if (2*R < state["cellSize"]):
-        cellsToCheck = 1
-    elif(R ==1):
-        cellsToCheck = m.ceil(R/state["cellSize"])+m.ceil(state["r"]/state["cellSize"])+1
-    else:
-        cellsToCheck = m.ceil(R/state["cellSize"])*4+1
-
-    #check neighbouring cells for overlap with small circles
-    circlesToCheck = [] #For some reason we are getting duplicates here, how could that be?
-    for dX in range(-cellsToCheck,cellsToCheck): 
-        thisXSquare = (xSquare+dX) % state["nmbrCells"]
-        for dY in range(-cellsToCheck,cellsToCheck):
-            thisYSquare = (ySquare+dY) % state["nmbrCells"]
-            circlesToCheck.extend(set((state["occArray"][thisXSquare,thisYSquare])))
-
-    for circle in circlesToCheck:
-        if circle>=state["N"]:
-            overlap.extend(getOverlapCircles(state,index,circle))
-
-    #check with all big circles, required for smaller circles:
-    for i in range(state["N"]):
-        if canCollide(state,i):
-            overlap.extend(getOverlapCircles(state,index,i))
-    return overlap
-
-
+#   Algorithm:
 
 def randomDiskClusterMove(state):
     '''Move a random (large or small) disk and update the state accordingly.'''
@@ -194,6 +179,8 @@ def diskClusterMove(state,index,pivot):
     for i in range(len(moved)):
         addDisk(state,moved[i])
 
+#   Collecting Data:
+
 def findDistance(state,i,j):
     x1,y1 = state["positions"][i]
     x2,y2 = state["positions"][j]
@@ -208,7 +195,27 @@ def findDavg(state):
             cumDistance += findDistance(state,i,j)
     return cumDistance / (state["N"]*(state["N"]-1)/2)
 
+#   Plotting States:
 
+def plotOneState(state, name="..."):
+    '''Plot a state using matplotlib'''
+    L = state["L"]
+    fig, ax = plt.subplots()
+    ax.set_ylim(0,state["L"])
+    ax.set_xlim(0,state["L"])
+    ax.set_yticklabels([])
+    ax.set_xticklabels([])
+    ax.set_yticks([])
+    ax.set_xticks([])
+    for i in range(len(state["size"])):
+        (x,y) = state["positions"][i]
+        r = state["size"][i]
+        for x_shift in [z for z in x + [-L,0,L] if -r<z<L+r]:
+            for y_shift in [z for z in y + [-L,0,L] if -r<z<L+r]:
+                ax.add_patch(plt.Circle((x_shift,y_shift),r))
+    if (name=="..."):
+        name = "testplot.jpeg"
+    plt.savefig(name)
 
 
 

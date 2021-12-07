@@ -10,25 +10,29 @@ def bigTest():
     
     s = bca.createState(20,7000,0.05, 12)
     startTime = time.perf_counter()
-    for i in range(100):
-            #bca.randomDiskClusterMove(s)
-            bca.bigDiskClusterMove(s)
+    for i in range(1000):
+            bca.randomDiskClusterMove(s)
+            #bca.bigDiskClusterMove(s)
     spentTime = time.perf_counter() - startTime
     print("Time for 100 moves: "+str(spentTime))
     bca.plotOneState(s)
-    #s = bca.createStateDensity(20,7000,0.1,0.26)
-    #bca.plotOneState(s)
-    # Random moves with example-settings: 0.5s (L=12)
-    # Big-circle moves with example-settings: 1.4s (L=12) -> Does this function work correctly?
+    # Random moves with example-settings: 0.08s (L=12)
+    # Big-circle moves with example-settings: 0.12s (L=12) -> still big circles don't change much...
 
 def timeTest():
-    N = 500 # moves between measurements
-    NI = 500 # initialisation moves
-    M = 20 # nmbr of measurements
+    # As used in the book:
+    #d = 0.36       # >0.01 s/move, Davg = 7.04, sdt = 0.07
+    #d = 0.52       # 0.01 s/move, Davg = 5.90, std = 0.05
+    d = 0.7         # 0.035 s/move, Davg = 4.89, std = 0.13
+
+    # As found by trial and error:
+    N = 1000 # moves between measurements
+    NI = 1000 # initialisation moves
+    M = 10 # nmbr of measurements
 
     startTime = time.perf_counter()
-    s = bca.createState(10,1000,0.1, 10)
-    thisName = "../Results/testPlot_startState_N="+str(N)+".png"
+    s = bca.createStateDensity(18,7200,0.05,d)
+    thisName = "../Results/bookTest_startState_d="+str(d)+"_N="+str(N)+".png"
     bca.plotOneState(s,thisName)
     for i in range(NI):
         bca.randomDiskClusterMove(s)
@@ -41,7 +45,7 @@ def timeTest():
             bca.randomDiskClusterMove(s)
         Davgs[i] = bca.findDavg(s)
         print("Measurment "+str(i)+" complete! (Davg="+str(Davgs[i])+").")
-        thisName = "../Results/testPlot_M="+str(i)+"_N="+str(N)+".png"
+        thisName = "../Results/bookTest_d="+str(d)+"_N="+str(N)+"_M="+str(i)+".png"
         bca.plotOneState(s,thisName)
 
     spentTime = time.perf_counter() - startTime - initTime
