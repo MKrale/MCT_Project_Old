@@ -19,14 +19,20 @@ def createState(N,n,r,L):
     positions = np.zeros((N+n,2))
     size = np.zeros(N+n)
     R=1
+    if L/100 < 2*r:
+        nmbrCells = m.ceil(L/r)
+        print("nmbrCells changed to "+str(nmbrCells))
+    else:
+        nmbrCells = 100 
+    cellSize = L/nmbrCells
 
     #Putting all big circles on a grid, starting at 0,0
     if (R==1):
-        x,y = 0,0
+        x,y = -R,R
         for i in range(N):
-            if (L-x < 2*R):
+            if (L-x < 3*R):
                 y+=2*R
-                x=0
+                x=R
             else:
                 x+= 2*R
             positions[i] = [x,y]
@@ -36,7 +42,7 @@ def createState(N,n,r,L):
 
     #Putting all small circles on a grid, starting from -R+r,-R+r, going down
     if (True):
-        x,y = 0,L-R-r
+        x,y = -r,L-r
         for i in range(n):
             if (L-x < 2*r):
                 y-=2*r
@@ -46,17 +52,24 @@ def createState(N,n,r,L):
             positions[N+i] = [x,y]
             size[N+i] = r
     
-   #create occArray:
-    occArray = np.ndarray((L,L), dtype=object)
-    for i in range(L):
-        for j in range(L):
+    #create occArray:
+    #occArray = np.ndarray((L,L), dtype=object)
+    occArray = np.ndarray((nmbrCells,nmbrCells), dtype=object)
+    for i in range(nmbrCells):
+        for j in range(nmbrCells):
             occArray[i,j] = []
 
     for i in range(N+n):
         x,y = positions[i]
-        x,y = int(x)%L, int(y)%L
+        x,y = int(x*nmbrCells/L)%nmbrCells, int(y*nmbrCells/L)%nmbrCells
         occArray[x,y].append(i)
-    return {"positions": positions, "size": size, "occArray": occArray, "L":L, "N":N, "n":n}
+
+    return {"positions": positions, "size": size, "occArray": occArray, "L":L, "N":N, "n":n, "R":R,"r":r, "cellSize":cellSize, "nmbrCells":nmbrCells}
+
+def findCellCoords(state, index):
+    x,y = state["positions"][index]
+    L = state["L"]
+    return int(x*state["nmbrCells"]/L)%state["nmbrCells"], int(y*state["nmbrCells"]/L)%state["nmbrCells"]
 
 def createStateDensity(N,n,r,d):
     Acircles = m.pi*(N+(r**2)*n)
@@ -84,46 +97,65 @@ def plotOneState(state, name="..."):
     plt.savefig(name)
 
 def clearDisk(state,index):
-    occX, occY = state["positions"][index]
-    occX, occY = int(occX)%state["L"], int(occY)%state["L"]
-    #print(index)
-    #print(state["positions"])
-    #print(state["occArray"])
-    #print([occX,occY])
+    occX, occY = findCellCoords(state,index)
     indexInOcc = state["occArray"][occX,occY].index(index)
     state["occArray"][occX,occY].pop(indexInOcc)
 
 def addDisk(state,index):
-    occX, occY = state["positions"][index]
-    occX, occY = int(occX)%state["L"],int(occY)%state["L"]
+    occX, occY = findCellCoords(state,index)
     state["occArray"][occX,occY].append(index)
 
 def pointReflect(point, pivot, L):
     point[:] = (2*pivot - point)%L
 
+def canCollide(state,index):
+    occX,occY = findCellCoords(state,index)
+    if index in state["occArray"][occX,occY]:
+        return True
+    return False
+
+def getOverlapCircles(state,i,j):
+    distance = findDistance(state,i,j)
+    Ri,Rj = state["size"][i],state["size"][j]
+    if ( distance < Ri+Rj):
+        #check if fully covered (small circle represented by square for convenience):
+        if (distance+Rj < Ri):
+            return[(j,True)]
+        else:
+            return[(j,False)]
+    return []
+
 def getOverlap(state, index):
     R = state["size"][index]
     L = state["L"]
     x,y = state["positions"][index]
-    xSquare,ySquare = int(x), int(y)
+    xSquare,ySquare = findCellCoords(state,index)
     overlap = []
 
-    #big circles: check in 5x5 centred on circle
-    if (True):
-        for dX in range(-3,3): #wht 3?
-            thisXSquare = (xSquare+dX) % L
-            for dY in range(-3,3):
-                thisYSquare = (ySquare+dY) % L
-                circlesToCheck = state["occArray"][thisXSquare,thisYSquare]
-                for circle in circlesToCheck:
-                    distance = findDistance(state,index,circle)
-                    thisR = state["size"][circle]
-                    if ( distance < R+thisR):
-                        #check if fully covered (small circle represented by square for convenience):
-                        if (distance+thisR < R):
-                            overlap.append((circle,True))
-                        else:
-                            overlap.append((circle,False))
+    #check which cells need to be checked
+    if (2*R < state["cellSize"]):
+        cellsToCheck = 1
+    elif(R ==1):
+        cellsToCheck = m.ceil(R/state["cellSize"])+m.ceil(state["r"]/state["cellSize"])+1
+    else:
+        cellsToCheck = m.ceil(R/state["cellSize"])*4+1
+
+    #check neighbouring cells for overlap with small circles
+    circlesToCheck = [] #For some reason we are getting duplicates here, how could that be?
+    for dX in range(-cellsToCheck,cellsToCheck): 
+        thisXSquare = (xSquare+dX) % state["nmbrCells"]
+        for dY in range(-cellsToCheck,cellsToCheck):
+            thisYSquare = (ySquare+dY) % state["nmbrCells"]
+            circlesToCheck.extend(set((state["occArray"][thisXSquare,thisYSquare])))
+
+    for circle in circlesToCheck:
+        if circle>=state["N"]:
+            overlap.extend(getOverlapCircles(state,index,circle))
+
+    #check with all big circles, required for smaller circles:
+    for i in range(state["N"]):
+        if canCollide(state,i):
+            overlap.extend(getOverlapCircles(state,index,i))
     return overlap
 
 
@@ -134,7 +166,11 @@ def randomDiskClusterMove(state):
     pivot = rng.uniform(0,state["L"],2)
     diskClusterMove(state,index,pivot)
 
-
+def bigDiskClusterMove(state):
+    '''Move a random large disk and update the state accordingly.'''
+    index = rng.integers(0,state["N"])
+    pivot = rng.uniform(0,state["L"],2)
+    diskClusterMove(state,index,pivot)
 
 def diskClusterMove(state,index,pivot):
     toMove = deque()
