@@ -21,9 +21,9 @@ def bigTest():
 
 def timeTest():
     # As used in the book:
-    #d = 0.36       # >0.01 s/move, Davg = 7.04, sdt = 0.07
+    d = 0.36       # >0.01 s/move, Davg = 7.04, sdt = 0.07
     #d = 0.52       # 0.01 s/move, Davg = 5.90, std = 0.05
-    d = 0.7         # 0.035 s/move, Davg = 4.89, std = 0.13
+    #d = 0.7        # 0.035 s/move, Davg = 4.89, std = 0.13
 
     # As found by trial and error:
     N = 1000 # moves between measurements
