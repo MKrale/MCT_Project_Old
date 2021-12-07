@@ -55,4 +55,39 @@ def timeTest():
     print("Mean Distance: "+str(Davg)+", with std "+str(Dstd)+"." )
     bca.plotOneState(s)
 
-timeTest()
+def dDependencyTest():
+    M = 10
+    N = 1000
+    NI = 2*N
+    densities = np.arange(0.05,0.751,0.05)
+
+    f=open("D_DependencyTest_N="+str(N)+"_M="+str(M)+".txt", 'x')
+    f.write("Testing D_Dependency with following settings:\nN = "+str(N)+"\nM = "+str(M)+"\nds = "+str(densities)+"\n\n\n")
+    startTime = time.perf_counter()
+
+    for d in densities:
+        Davgs = []
+        print("Setting up for d="+str(d)+":")
+        f.write("d = "+str(d)+":\nDavg = [")
+        s = bca.createStateDensity(18,7200,0.05,d)
+        for i in range(NI):
+            bca.randomDiskClusterMove(s)
+        print("Setup complete!")
+        for i in range(M):
+            for j in range(N):
+                bca.randomDiskClusterMove(s)
+            Davgs.append(bca.findDavg(s))
+            print("after "+str(N*(i+1))+" Moves, Davg="+str(Davgs[i])+".")
+            if i!=0:
+                f.write(",")
+            f.write(str(Davgs[i]))
+            
+        Davg = np.mean(Davgs)
+        Dstd = np.std(Davgs)
+        print("\n\nRESULT: for d = "+str(d)+", mean Distance: "+str(Davg)+", with std "+str(Dstd)+".\n\n" )
+        f.write("]\nMean Davg = "+str(Davg)+"\ndeviation = "+str(Dstd)+ "\n\n")
+    f.close()
+
+    endTime = time.perf_counter()-startTime
+    print("Total run took "+str(endTime)+"s.")
+dDependencyTest()
